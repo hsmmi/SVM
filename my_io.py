@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from normalization import clipping, log_scaling, range_min_to_max,\
      zero_mean_unit_variance
+import scipy.io
 
 
 def read_dataset(file, atr):
@@ -63,10 +64,16 @@ def string_to_dataframe(string):
     return pd.read_csv(data)
 
 
+def read_mat(file):
+    mat = scipy.io.loadmat(file)
+    sample, label = mat['X'], mat['y']
+    return sample, label
+
+
 def read_dataset_to_X_and_y(
-        file, range_feature=None, range_label=None, normalization=None,
-        min_value=None, max_value=None, add_x0=False, shuffle=False,
-        about_nan=None):
+        file, train_size=0.25, range_feature=None, range_label=None,
+        normalization=None, min_value=None, max_value=None, add_x0=False,
+        shuffle=False, about_nan=None):
     """
     Read the attribute(range_atr) that you want and put X0 = 1 and thoes
     attribute of all samples in X and all samples label in y
@@ -77,19 +84,26 @@ def read_dataset_to_X_and_y(
     Return X and y as nparray
     """
     import numpy as np
-    col_name, data = read_dataset_with_pandas(file)
-    if(about_nan == 'delete'):
-        data.dropna(inplace=True)
+    if(file.split('.')[-1] == 'csv'):
+        col_name, data = read_dataset_with_pandas(file)
+        if(about_nan == 'delete'):
+            data.dropna(inplace=True)
 
-    number_of_attribute = len(col_name)
-    for col in col_name:
-        if(data[col].dtype != int and data[col].dtype != float):
-            data[col] = pd.factorize(data[col])[0]
+        number_of_attribute = len(col_name)
+        for col in col_name:
+            if(data[col].dtype != int and data[col].dtype != float):
+                data[col] = pd.factorize(data[col])[0]
 
-    data = data.to_numpy()
+        data = data.to_numpy()
+
+    elif(file.split('.')[-1] == 'mat'):
+        sample, label = read_mat(file)
+        data = np.hstack((sample, label))
 
     if(shuffle is True):
         np.random.shuffle(data)
+
+    number_of_sample, number_of_attribute = data.shape[0], data.shape[1]
 
     if(range_feature is None):
         range_feature = (0, number_of_attribute-1)
@@ -129,7 +143,12 @@ def read_dataset_to_X_and_y(
                 '"logScaling"')
             return
 
-    return feature, label
+    sample_train, label_train = (feature[:int(number_of_sample*train_size)],
+                                 label[:int(number_of_sample*train_size)])
+    sample_test, label_test = (feature[int(number_of_sample*train_size):],
+                               label[int(number_of_sample*train_size):])
+
+    return sample_train, label_train, sample_test, label_test
 
 
 def nparray_to_csv(file: str, input: np.ndarray, decimal: int) -> None:
